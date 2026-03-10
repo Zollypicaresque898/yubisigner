@@ -15,8 +15,8 @@ YubiKey hardware security
 - RFC-compliant signatures with CRLF  
 - Compact GUI with dark/light mode  
 - Identicon for author verification (see [yubicrypt](https://github.com/Ch1ffr3punk/yubicrypt))  
-- UTF-8 support for international characters in author and comment string  
-  of detached .sig file
+- UTF-8 support for international characters in author
+- and comment string of detached .sig file
 
 ## Example Signature file (.sig)
 ```
@@ -52,6 +52,7 @@ XMR: 45TJx8ZHngM4GuNfYxRw7R7vRyFgfMVp862JqycMrPmyfTfJAYcQGEzT27wL1z5RG1b5XfRPJk9
 <a href="https://www.buymeacoffee.com/Ch1ffr3punk" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-yellow.png" alt="Buy Me A Coffee" height="41" width="174"></a>
 
 yubisigner is dedicated to Alice and Bob.  
+
 
 
 
