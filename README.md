@@ -5,7 +5,7 @@ yubisign is a compact GUI program for signing and verifying
 files with YubiKey. It supports international cryptographic  
 standards and offers maximum security through hardware keys. 
 
-**Please note** No Yubikey is required for signature verification.
+**Please note:** No Yubikey is required for signature verification.
 
 ## Features
 
@@ -52,6 +52,7 @@ XMR: 45TJx8ZHngM4GuNfYxRw7R7vRyFgfMVp862JqycMrPmyfTfJAYcQGEzT27wL1z5RG1b5XfRPJk9
 <a href="https://www.buymeacoffee.com/Ch1ffr3punk" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-yellow.png" alt="Buy Me A Coffee" height="41" width="174"></a>
 
 yubisigner is dedicated to Alice and Bob.  
+
 
 
 
