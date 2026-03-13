@@ -1,8 +1,8 @@
 # yubisigner
 
 Hardware-based, multi-standard file signing with YubiKey.  
-yubisign is a compact GUI program for signing and verifying  
-files with YubiKey. It supports international cryptographic  
+yubisigner is a compact GUI program for signing and verifying  
+files with a YubiKey. It supports international cryptographic  
 standards and offers maximum security through hardware keys.
 
 **Please note:** No Yubikey is required for signature or Merkle Tree verification.    
