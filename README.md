@@ -46,9 +46,9 @@ c5d2c9dc1698cd93f22c4cb37c9122fbc529df810bafc2c3f3da1d4893df03ed
 -----END YUBISIGNER ED25519 SIGNATURE-----
 ```
 
-!\[yubisigner](img/1.png)
+![yubisigner](img/1.png)
 
-!\[yubisigner](img/2.png)
+![yubisigner](img/2.png)
 
 If you like yubisigner, as much as I do,  consider a small  
 donation in crypto currencies or buy me a coffee.
