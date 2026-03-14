@@ -46,16 +46,16 @@ type MerkleNode struct {
 	Right *MerkleNode
 }
 
-// File hash entry for Merkle tree
+// FileHashEntry stores file path and hash for Merkle tree
 type FileHashEntry struct {
 	Path string
 	Hash string
 }
 
-// Signature metadata structure
+// SignatureMetadata stores metadata about the signature
 type SignatureMetadata struct {
 	Author    string
-	email     string
+	Email     string
 	URL       string
 	Filename  string
 	FileSize  int64
@@ -65,13 +65,14 @@ type SignatureMetadata struct {
 // ecSignature represents an ECDSA signature with R and S components
 type ecSignature struct{ R, S *big.Int }
 
-// Supported algorithms
+// Supported algorithms constants
 const (
 	AlgorithmECCP256 = "ECCP256"
 	AlgorithmECCP384 = "ECCP384"
 	AlgorithmED25519 = "ED25519"
 )
 
+// Map of supported algorithms
 var supportedAlgorithms = map[string]bool{
 	AlgorithmECCP256: true,
 	AlgorithmECCP384: true,
@@ -97,6 +98,7 @@ const (
 	Ed25519CombinedSize  = Ed25519SignatureSize + Ed25519PublicKeySize
 )
 
+// Minimum RSA key bits
 const (
 	minRSABits = 2048
 )
@@ -111,7 +113,7 @@ var supportedRSASizes = map[int]string{
 // RFC 5322 compliant email regex pattern
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
-// GUI structure with progress bar and file size display
+// GUI structure with all UI components
 type GUI struct {
 	app            fyne.App
 	window         fyne.Window
@@ -137,11 +139,12 @@ type GUI struct {
 	fileSelected   bool
 }
 
+// main initializes and runs the application
 func main() {
 	defer memguard.Purge()
-	// Set UTF-8 as default encoding
-	os.Setenv("LANG", "en_US.UTF-8")
-	os.Setenv("LC_ALL", "en_US.UTF-8")
+
+	// NOTE: Removed os.Setenv for LANG and LC_ALL to prevent theme conflicts
+
 	gui := &GUI{
 		app:            app.NewWithID("oc2mx.net.yubisigner"),
 		currentTheme:   "dark",
@@ -151,6 +154,7 @@ func main() {
 		signaturePath:  "",
 		fileSelected:   false,
 	}
+
 	gui.window = gui.app.NewWindow("yubisigner")
 	gui.window.Resize(fyne.NewSize(600, 520))
 	gui.createUI()
@@ -162,7 +166,7 @@ func main() {
 
 // createUI initializes all UI components
 func (g *GUI) createUI() {
-	// Author Entry (Required)
+	// Author Entry (Required field)
 	g.authorEntry = widget.NewEntry()
 	g.authorEntry.SetPlaceHolder("required")
 	g.authorEntry.Validator = func(s string) error {
@@ -172,7 +176,7 @@ func (g *GUI) createUI() {
 		return nil
 	}
 
-	// email Entry (Optional, RFC-compliant validation)
+	// Email Entry (Optional, RFC-compliant validation)
 	g.emailEntry = widget.NewEntry()
 	g.emailEntry.SetPlaceHolder("optional")
 	g.emailEntry.Validator = func(s string) error {
@@ -189,7 +193,7 @@ func (g *GUI) createUI() {
 	g.urlEntry = widget.NewEntry()
 	g.urlEntry.SetPlaceHolder("optional")
 
-	// Telefax Entry (Optional, must start with '+')
+	// Telefax Entry (Optional, must start with '+' for international format)
 	g.telefaxEntry = widget.NewEntry()
 	g.telefaxEntry.SetPlaceHolder("optional")
 	g.telefaxEntry.Validator = func(s string) error {
@@ -206,7 +210,7 @@ func (g *GUI) createUI() {
 	g.commentEntry = widget.NewEntry()
 	g.commentEntry.SetPlaceHolder("optional")
 
-	// Filename Label (shows selected file)
+	// Filename Label (shows selected file name)
 	g.filenameLabel = widget.NewLabel("No file selected")
 	g.filenameLabel.TextStyle = fyne.TextStyle{Italic: true}
 
@@ -215,7 +219,7 @@ func (g *GUI) createUI() {
 	g.filesizeLabel.TextStyle = fyne.TextStyle{Monospace: true}
 	g.filesizeLabel.Hide()
 
-	// PIN Entry
+	// PIN Entry (password field, max 8 ASCII characters)
 	g.pinEntry = widget.NewPasswordEntry()
 	g.pinEntry.SetPlaceHolder("")
 	g.pinEntry.Validator = func(s string) error {
@@ -230,15 +234,15 @@ func (g *GUI) createUI() {
 		return nil
 	}
 
-	// Status Label
+	// Status Label (shows current operation status)
 	g.statusLabel = widget.NewLabel("Ready")
 	g.statusLabel.Wrapping = fyne.TextWrapWord
 
-	// Signature Display (shows existing signature)
+	// Signature Display (shows existing signature file)
 	g.sigDisplay = widget.NewLabel("")
 	g.sigDisplay.TextStyle = fyne.TextStyle{Italic: true}
 
-	// Progress bar for large files
+	// Progress bar for large file operations
 	g.progressBar = widget.NewProgressBar()
 	g.progressBar.Min = 0
 	g.progressBar.Max = 1
@@ -249,25 +253,25 @@ func (g *GUI) createUI() {
 	g.progressLabel.Alignment = fyne.TextAlignCenter
 	g.progressLabel.Hide()
 
-	// Theme Toggle
+	// Theme Toggle Button (switch between light/dark theme)
 	g.themeToggle = widget.NewButton("☀️", g.toggleTheme)
 
-	// Info Button (top left)
+	// Info Button (top left, shows project information)
 	g.infoBtn = widget.NewButtonWithIcon("", theme.InfoIcon(), g.showInfoPopup)
 }
 
-// createMainUI builds the main layout - WITH CMT and VMT buttons
+// createMainUI builds the main layout with all buttons and fields
 func (g *GUI) createMainUI() fyne.CanvasObject {
-	// Buttons - now with CMT and VMT
+	// Main action buttons (Sign, Verify, CMT, VMT)
 	signBtn := widget.NewButton("Sign", g.onSignClick)
 	signBtn.Importance = widget.HighImportance
-	
+
 	verifyBtn := widget.NewButton("Verify", g.onVerifyClick)
 	verifyBtn.Importance = widget.HighImportance
-	
+
 	cmtBtn := widget.NewButton("CMT", g.onCreateMerkleTree)
 	cmtBtn.Importance = widget.HighImportance
-	
+
 	vmtBtn := widget.NewButton("VMT", g.onVerifyMerkleTree)
 	vmtBtn.Importance = widget.HighImportance
 
@@ -283,14 +287,14 @@ func (g *GUI) createMainUI() fyne.CanvasObject {
 		),
 	)
 
-	// Top Bar: Info (Left), Theme (Right)
+	// Top Bar: Info button (Left), Theme toggle (Right)
 	topBar := container.NewHBox(
 		g.infoBtn,
 		layout.NewSpacer(),
 		g.themeToggle,
 	)
 
-	// Metadata grid (with Telefax and Comment)
+	// Metadata grid with all input fields
 	metadataGrid := container.New(layout.NewFormLayout(),
 		widget.NewLabel("Author:"),
 		g.authorEntry,
@@ -310,11 +314,11 @@ func (g *GUI) createMainUI() fyne.CanvasObject {
 		g.filesizeLabel,
 	)
 
-	// Clear Button
+	// Clear Button (resets all fields)
 	clearBtn := widget.NewButton("Clear", g.onClear)
 	clearBtn.Importance = widget.HighImportance
 
-	// PIN Container
+	// PIN Container with label, entry and clear button
 	pinContainer := container.NewHBox(
 		layout.NewSpacer(),
 		widget.NewLabel("PIN:"),
@@ -323,13 +327,13 @@ func (g *GUI) createMainUI() fyne.CanvasObject {
 		layout.NewSpacer(),
 	)
 
-	// Progress Container
+	// Progress Container with label and progress bar
 	progressContainer := container.NewVBox(
 		g.progressLabel,
 		g.progressBar,
 	)
 
-	// Main container
+	// Main top container with all content
 	topContainer := container.NewVBox(
 		topBar,
 		widget.NewSeparator(),
@@ -341,17 +345,22 @@ func (g *GUI) createMainUI() fyne.CanvasObject {
 		g.sigDisplay,
 		progressContainer,
 	)
+
+	// Bottom container with PIN and status
 	bottomContainer := container.NewVBox(
 		widget.NewSeparator(),
 		pinContainer,
 		g.statusLabel,
 	)
+
+	// Main border layout
 	mainContainer := container.NewBorder(
 		topContainer,
 		bottomContainer,
 		nil,
 		nil,
 	)
+
 	return mainContainer
 }
 
@@ -368,7 +377,7 @@ func (g *GUI) toggleTheme() {
 	}
 }
 
-// applyTheme sets the initial theme
+// applyTheme sets the initial theme on startup
 func (g *GUI) applyTheme() {
 	if g.currentTheme == "dark" {
 		g.app.Settings().SetTheme(theme.DarkTheme())
@@ -379,22 +388,21 @@ func (g *GUI) applyTheme() {
 	}
 }
 
-// showInfoPopup
-func (n *GUI) showInfoPopup() {
+// showInfoPopup displays project information dialog
+func (g *GUI) showInfoPopup() {
 	projURL, _ := url.Parse("https://github.com/Ch1ffr3punk/yubisigner")
-	
 	projectLink := widget.NewHyperlink("An Open Source project", projURL)
-	
+
 	okButton := widget.NewButton("OK", func() {
-		overlays := n.window.Canvas().Overlays()
+		overlays := g.window.Canvas().Overlays()
 		if overlays.Top() != nil {
 			overlays.Remove(overlays.Top())
 		}
 	})
 	okButton.Importance = widget.HighImportance
-	
+
 	content := container.NewVBox(
-		widget.NewLabelWithStyle("yubisigner v0.1.2", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle("yubisigner v0.1.3", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		widget.NewSeparator(),
 		container.NewHBox(
 			layout.NewSpacer(),
@@ -411,52 +419,76 @@ func (n *GUI) showInfoPopup() {
 		),
 	)
 
-	dialog.ShowCustomWithoutButtons("", content, n.window)
+	dialog.ShowCustomWithoutButtons("", content, g.window)
 }
 
-// selectFile opens file dialog (modal)
+// selectFile opens the Fyne file dialog for file selection
+// FIX: Removed g.window.Content().Refresh() to prevent button rendering issues
 func (g *GUI) selectFile(callback func()) {
-	dialog := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+	// Store previous file path
+	previousFile := g.currentFile
+
+	// Create the file open dialog
+	fileDialog := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
 		if err != nil {
 			g.statusLabel.SetText("Error selecting file: " + err.Error())
 			return
 		}
 		if reader == nil {
+			// Dialog was cancelled
+			g.currentFile = previousFile
 			return
 		}
 		defer reader.Close()
+
+		// File was selected and "Open" clicked
 		g.currentFile = reader.URI().Path()
 		g.filenameLabel.SetText(filepath.Base(g.currentFile))
 		g.signaturePath = g.currentFile + ".sig"
 		g.fileSelected = true
+
 		fileInfo, err := os.Stat(g.currentFile)
 		if err != nil {
 			g.statusLabel.SetText("Error getting file info: " + err.Error())
 			return
 		}
-		// Show file size in bytes and human readable format
 		fileSize := fileInfo.Size()
 		g.filesizeLabel.SetText(fmt.Sprintf("Size: %d bytes (%s)",
 			fileSize, formatByteSize(int(fileSize))))
 		g.filesizeLabel.Show()
 		g.statusLabel.SetText(fmt.Sprintf("Selected: %s", filepath.Base(g.currentFile)))
-		// Check if signature exists
+
 		if _, err := os.Stat(g.signaturePath); err == nil {
 			g.sigDisplay.SetText("✓ " + filepath.Base(g.signaturePath))
 		} else {
 			g.sigDisplay.SetText("")
 		}
-		// Callback after file selection
+
 		if callback != nil {
 			callback()
 		}
 	}, g.window)
-	dialog.Show()
+
+	// Set filter to show all files
+	fileDialog.SetFilter(nil)
+
+	// FIX: Show dialog in fyne.Do() to ensure proper rendering on overlay
+	fyne.Do(func() {
+		fileDialog.Show()
+	})
+}
+
+// onSignClick handles the Sign button click - always opens file dialog
+func (g *GUI) onSignClick() {
+	g.signingMode = true
+	g.selectFile(func() {
+		g.continueSign()
+	})
 }
 
 // selectDirectory opens directory dialog for Merkle tree operations
 func (g *GUI) selectDirectory(callback func(string)) {
-	dialog := dialog.NewFolderOpen(func(list fyne.ListableURI, err error) {
+	folderDialog := dialog.NewFolderOpen(func(list fyne.ListableURI, err error) {
 		if err != nil {
 			g.statusLabel.SetText("Error selecting directory: " + err.Error())
 			return
@@ -472,18 +504,18 @@ func (g *GUI) selectDirectory(callback func(string)) {
 		g.filesizeLabel.Show()
 		g.statusLabel.SetText(fmt.Sprintf("Selected directory: %s", filepath.Base(dirPath)))
 		g.sigDisplay.SetText("")
-		
 		if callback != nil {
 			callback(dirPath)
 		}
 	}, g.window)
-	dialog.Show()
+	folderDialog.Show()
 }
 
-// showPinDialog shows a modal PIN dialog
+// showPinDialog shows a modal PIN entry dialog
 func (g *GUI) showPinDialog(message string, callback func(string)) {
 	pinEntry := widget.NewPasswordEntry()
 	pinEntry.SetPlaceHolder("Enter PIN")
+
 	d := dialog.NewCustomConfirm(
 		"PIN Required",
 		"OK",
@@ -541,9 +573,8 @@ func validateTelefax(telefax string) error {
 	return nil
 }
 
-// onCreateMerkleTree handles the Create Merkle Tree button
+// onCreateMerkleTree handles the Create Merkle Tree button click
 func (g *GUI) onCreateMerkleTree() {
-	// Select directory first
 	g.selectDirectory(func(dirPath string) {
 		g.continueCreateMerkleTree(dirPath)
 	})
@@ -553,7 +584,7 @@ func (g *GUI) onCreateMerkleTree() {
 func (g *GUI) continueCreateMerkleTree(dirPath string) {
 	g.statusLabel.SetText(fmt.Sprintf("Creating Merkle tree for %s...", filepath.Base(dirPath)))
 
-	// Show progress
+	// Show progress indicators
 	g.progressBar.SetValue(0)
 	g.progressBar.Show()
 	g.progressLabel.SetText("Scanning files...")
@@ -561,11 +592,11 @@ func (g *GUI) continueCreateMerkleTree(dirPath string) {
 
 	go func() {
 		startTime := time.Now()
-		
+
 		// Collect all files recursively
 		var fileEntries []FileHashEntry
 		var totalFiles int
-		
+
 		err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -575,13 +606,12 @@ func (g *GUI) continueCreateMerkleTree(dirPath string) {
 			}
 			return nil
 		})
-		
 		if err != nil {
 			g.showErrorAsync("Error scanning directory: " + err.Error())
 			return
 		}
-		
-		// Process files with progress
+
+		// Process files with progress updates
 		processedFiles := 0
 		err = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -593,64 +623,59 @@ func (g *GUI) continueCreateMerkleTree(dirPath string) {
 				if err != nil {
 					relPath = path
 				}
-				
+
 				// Skip the merkle-tree.txt file itself if it exists
 				if relPath == "merkle-tree.txt" {
 					processedFiles++
 					return nil
 				}
-				
+
 				// Calculate RIPEMD-160 hash
 				hash, err := calculateRIPEMD160File(path)
 				if err != nil {
 					g.updateStatusAsync(fmt.Sprintf("Error hashing %s: %v", relPath, err))
-					return nil // Continue with other files
+					return nil
 				}
-				
+
 				fileEntries = append(fileEntries, FileHashEntry{
 					Path: relPath,
 					Hash: hash,
 				})
-				
 				processedFiles++
+
 				progress := float64(processedFiles) / float64(totalFiles)
 				fyne.Do(func() {
 					g.progressBar.SetValue(progress)
-					g.progressLabel.SetText(fmt.Sprintf("Hashing files: %d/%d (%.0f%%)", 
+					g.progressLabel.SetText(fmt.Sprintf("Hashing files: %d/%d (%.0f%%)",
 						processedFiles, totalFiles, progress*100))
 				})
 			}
 			return nil
 		})
-		
 		if err != nil {
 			g.showErrorAsync("Error walking directory: " + err.Error())
 			return
 		}
-		
+
 		// Sort entries by path for consistent ordering
 		sort.Slice(fileEntries, func(i, j int) bool {
 			return fileEntries[i].Path < fileEntries[j].Path
 		})
-		
-		// Build Merkle tree to get root hash (nodes are not stored)
+
+		// Build Merkle tree to get root hash
 		g.updateStatusAsync("Building Merkle tree...")
 		rootHash := buildMerkleTreeRoot(fileEntries)
-		
-		// Build output with CRLF line endings - ONLY FILE HASHES AND ROOT
+
+		// Build output with CRLF line endings
 		var output strings.Builder
-		
-		// File hashes section
 		output.WriteString("--- FILE HASHES (RIPEMD-160) ---\r\n")
 		for _, entry := range fileEntries {
 			output.WriteString(fmt.Sprintf("%s: %s\r\n", entry.Path, entry.Hash))
 		}
 		output.WriteString("\r\n")
-		
-		// Root hash only - no intermediate nodes
 		output.WriteString("--- ROOT HASH (RIPEMD-160) ---\r\n")
 		output.WriteString(fmt.Sprintf("%s\r\n", rootHash))
-		
+
 		// Write to file
 		outputFile := filepath.Join(dirPath, "merkle-tree.txt")
 		err = os.WriteFile(outputFile, []byte(output.String()), 0644)
@@ -658,34 +683,33 @@ func (g *GUI) continueCreateMerkleTree(dirPath string) {
 			g.showErrorAsync("Error writing Merkle tree file: " + err.Error())
 			return
 		}
-		
+
 		elapsedTime := time.Since(startTime).Seconds()
 		fyne.Do(func() {
 			g.progressBar.Hide()
 			g.progressLabel.Hide()
-			g.statusLabel.SetText(fmt.Sprintf("✓ Merkle tree created: %s (%.1f seconds, %d files)", 
+			g.statusLabel.SetText(fmt.Sprintf("✓ Merkle tree created: %s (%.1f seconds, %d files)",
 				"merkle-tree.txt", elapsedTime, len(fileEntries)))
 			g.sigDisplay.SetText("✓ merkle-tree.txt")
 		})
 	}()
 }
 
-// buildMerkleTreeRoot builds a Merkle tree and returns ONLY the root hash
+// buildMerkleTreeRoot builds a Merkle tree and returns only the root hash
 func buildMerkleTreeRoot(entries []FileHashEntry) string {
 	if len(entries) == 0 {
 		return ""
 	}
-	
+
 	// Start with leaf hashes
 	var currentLevel []string
 	for _, entry := range entries {
 		currentLevel = append(currentLevel, entry.Hash)
 	}
-	
+
 	// Build tree bottom-up until we get the root
 	for len(currentLevel) > 1 {
 		var nextLevel []string
-		
 		for i := 0; i < len(currentLevel); i += 2 {
 			if i+1 < len(currentLevel) {
 				// Combine two nodes
@@ -697,20 +721,18 @@ func buildMerkleTreeRoot(entries []FileHashEntry) string {
 				nextLevel = append(nextLevel, currentLevel[i])
 			}
 		}
-		
 		currentLevel = nextLevel
 	}
-	
+
 	// Root hash is the last remaining node
 	if len(currentLevel) == 1 {
 		return currentLevel[0]
 	}
-	
 	return ""
 }
-// onVerifyMerkleTree handles the Verify Merkle Tree button
+
+// onVerifyMerkleTree handles the Verify Merkle Tree button click
 func (g *GUI) onVerifyMerkleTree() {
-	// Select directory containing merkle-tree.txt
 	g.selectDirectory(func(dirPath string) {
 		g.continueVerifyMerkleTree(dirPath)
 	})
@@ -725,44 +747,40 @@ func (g *GUI) continueVerifyMerkleTree(dirPath string) {
 		dialog.ShowError(fmt.Errorf("merkle-tree.txt not found in selected directory"), g.window)
 		return
 	}
-	
+
 	g.statusLabel.SetText("Verifying Merkle tree...")
 	g.progressBar.SetValue(0)
 	g.progressBar.Show()
 	g.progressLabel.SetText("Parsing Merkle tree file...")
 	g.progressLabel.Show()
-	
+
 	go func() {
 		startTime := time.Now()
-		
+
 		// Parse the merkle-tree.txt file
 		content := string(merkleData)
 		lines := strings.Split(content, "\r\n")
-		
+
 		// Extract data
 		var fileHashes []FileHashEntry
-		var treeNodes []string
 		var rootHashFromFile string
-		
 		section := ""
+
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
 			if line == "" {
 				continue
 			}
-			
+
 			// Check for section headers
 			if line == "--- FILE HASHES (RIPEMD-160) ---" {
 				section = "file_hashes"
-				continue
-			} else if line == "--- MERKLE TREE NODES ---" {
-				section = "tree_nodes"
 				continue
 			} else if line == "--- ROOT HASH (RIPEMD-160) ---" {
 				section = "root_hash"
 				continue
 			}
-			
+
 			// Parse based on section
 			switch section {
 			case "file_hashes":
@@ -777,32 +795,19 @@ func (g *GUI) continueVerifyMerkleTree(dirPath string) {
 						})
 					}
 				}
-				
-			case "tree_nodes":
-				if strings.Contains(line, ":") {
-					parts := strings.SplitN(line, ":", 2)
-					if len(parts) == 2 {
-						treeNode := strings.TrimSpace(parts[1])
-						if len(treeNode) == 40 { // RIPEMD-160 is 40 hex chars
-							treeNodes = append(treeNodes, treeNode)
-						}
-					}
-				}
-				
 			case "root_hash":
-				if len(line) == 40 { // RIPEMD-160 is 40 hex chars
+				if len(line) == 40 {
 					rootHashFromFile = line
 				}
 			}
 		}
-		
+
 		// Verify by recalculating hashes
 		g.updateStatusAsync("Recalculating file hashes...")
-		
 		var currentFileHashes []FileHashEntry
 		var totalFiles int
-		
-		// Count total files for progress (excluding merkle-tree.txt)
+
+		// Count total files for progress
 		filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 			if err == nil && !info.IsDir() {
 				relPath, _ := filepath.Rel(dirPath, path)
@@ -812,67 +817,63 @@ func (g *GUI) continueVerifyMerkleTree(dirPath string) {
 			}
 			return nil
 		})
-		
+
 		processedFiles := 0
 		err = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
 			if !info.IsDir() {
-				// Get relative path
 				relPath, err := filepath.Rel(dirPath, path)
 				if err != nil {
 					relPath = path
 				}
-				
-				// Skip the merkle-tree.txt file itself
+
 				if relPath == "merkle-tree.txt" {
 					processedFiles++
 					return nil
 				}
-				
-				// Calculate RIPEMD-160 hash
+
 				hash, err := calculateRIPEMD160File(path)
 				if err != nil {
 					g.updateStatusAsync(fmt.Sprintf("Error hashing %s: %v", relPath, err))
 					return nil
 				}
-				
+
 				currentFileHashes = append(currentFileHashes, FileHashEntry{
 					Path: relPath,
 					Hash: hash,
 				})
-				
 				processedFiles++
+
 				progress := float64(processedFiles) / float64(totalFiles)
 				fyne.Do(func() {
 					g.progressBar.SetValue(progress)
-					g.progressLabel.SetText(fmt.Sprintf("Verifying: %d/%d (%.0f%%)", 
+					g.progressLabel.SetText(fmt.Sprintf("Verifying: %d/%d (%.0f%%)",
 						processedFiles, totalFiles, progress*100))
 				})
 			}
 			return nil
 		})
-		
 		if err != nil {
 			g.showErrorAsync("Error walking directory: " + err.Error())
 			return
 		}
-		
+
 		// Sort by path
 		sort.Slice(currentFileHashes, func(i, j int) bool {
 			return currentFileHashes[i].Path < currentFileHashes[j].Path
 		})
-		
+
 		// Compare file counts
 		if len(currentFileHashes) != len(fileHashes) {
 			fyne.Do(func() {
-				g.showErrorPopup(fmt.Sprintf("File count mismatch: expected %d, found %d", 
+				g.showErrorPopup(fmt.Sprintf("File count mismatch: expected %d, found %d",
 					len(fileHashes), len(currentFileHashes)), nil)
 			})
 			return
 		}
-		
+
 		// Compare individual file hashes
 		hashMismatch := false
 		for i := 0; i < len(fileHashes); i++ {
@@ -880,46 +881,46 @@ func (g *GUI) continueVerifyMerkleTree(dirPath string) {
 				hashMismatch = true
 				break
 			}
-			if fileHashes[i].Path != currentFileHashes[i].Path || 
-			   fileHashes[i].Hash != currentFileHashes[i].Hash {
+			if fileHashes[i].Path != currentFileHashes[i].Path ||
+				fileHashes[i].Hash != currentFileHashes[i].Hash {
 				hashMismatch = true
 				g.updateStatusAsync(fmt.Sprintf("Mismatch: %s", fileHashes[i].Path))
 				break
 			}
 		}
-		
+
 		if hashMismatch {
 			fyne.Do(func() {
 				g.showErrorPopup("File hash mismatch detected", nil)
 			})
 			return
 		}
-		
+
 		// Rebuild Merkle tree to verify root hash
 		g.updateStatusAsync("Rebuilding Merkle tree...")
 		calculatedRootHash, _ := buildMerkleTree(currentFileHashes)
-		
+
 		// Compare root hashes
 		if calculatedRootHash != rootHashFromFile {
 			fyne.Do(func() {
-				g.showErrorPopup(fmt.Sprintf("Root hash mismatch:\nExpected: %s\nCalculated: %s", 
+				g.showErrorPopup(fmt.Sprintf("Root hash mismatch:\nExpected: %s\nCalculated: %s",
 					rootHashFromFile, calculatedRootHash), nil)
 			})
 			return
 		}
-		
+
 		elapsedTime := time.Since(startTime).Seconds()
 		fyne.Do(func() {
 			g.progressBar.Hide()
 			g.progressLabel.Hide()
-			g.statusLabel.SetText(fmt.Sprintf("✓ Merkle tree verified successfully (%.1f seconds, %d files)", 
+			g.statusLabel.SetText(fmt.Sprintf("✓ Merkle tree verified successfully (%.1f seconds, %d files)",
 				elapsedTime, len(currentFileHashes)))
-			
-			// Create a hash for identicon from root hash
+
+			// Create identicon from root hash
 			hashBytes, _ := hex.DecodeString(calculatedRootHash)
 			hexString := hex.EncodeToString(hashBytes)
-                        hashForIdenticon := sha256.Sum256([]byte(hexString))
-                        g.showSuccessPopupWithIdenticon(hashForIdenticon[:])
+			hashForIdenticon := sha256.Sum256([]byte(hexString))
+			g.showSuccessPopupWithIdenticon(hashForIdenticon[:])
 		})
 	}()
 }
@@ -931,10 +932,10 @@ func calculateRIPEMD160File(filePath string) (string, error) {
 		return "", err
 	}
 	defer file.Close()
-	
+
 	hasher := ripemd.New160()
-	buf := make([]byte, 32*1024*1024) // 32MB buffer
-	
+	buf := make([]byte, 32*1024*1024)
+
 	for {
 		n, err := file.Read(buf)
 		if n > 0 {
@@ -947,50 +948,42 @@ func calculateRIPEMD160File(filePath string) (string, error) {
 			return "", err
 		}
 	}
-	
+
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// buildMerkleTree builds a Merkle tree from file hash entries and returns root hash and all node hashes
+// buildMerkleTree builds a Merkle tree from file hash entries
 func buildMerkleTree(entries []FileHashEntry) (string, []string) {
 	if len(entries) == 0 {
 		return "", []string{}
 	}
-	
-	// Start with leaf hashes
+
 	var currentLevel []string
 	for _, entry := range entries {
 		currentLevel = append(currentLevel, entry.Hash)
 	}
-	
+
 	var allNodes []string
 	allNodes = append(allNodes, currentLevel...)
-	
-	// Build tree bottom-up
+
 	for len(currentLevel) > 1 {
 		var nextLevel []string
-		
 		for i := 0; i < len(currentLevel); i += 2 {
 			if i+1 < len(currentLevel) {
-				// Combine two nodes
 				combined := currentLevel[i] + currentLevel[i+1]
 				hash := calculateRIPEMD160(combined)
 				nextLevel = append(nextLevel, hash)
 				allNodes = append(allNodes, hash)
 			} else {
-				// Odd node, promote to next level
 				nextLevel = append(nextLevel, currentLevel[i])
 			}
 		}
-		
 		currentLevel = nextLevel
 	}
-	
-	// Root hash is the last remaining node
+
 	if len(currentLevel) == 1 {
 		return currentLevel[0], allNodes
 	}
-	
 	return "", allNodes
 }
 
@@ -999,22 +992,6 @@ func calculateRIPEMD160(data string) string {
 	hasher := ripemd.New160()
 	hasher.Write([]byte(data))
 	return hex.EncodeToString(hasher.Sum(nil))
-}
-
-// onSignClick - integrated file selection
-func (g *GUI) onSignClick() {
-	g.signingMode = true
-	
-	// If no file is selected, open file dialog first
-	if g.currentFile == "" {
-		g.selectFile(func() {
-			// After file is selected, proceed with signing
-			g.continueSign()
-		})
-		return
-	}
-	
-	g.continueSign()
 }
 
 // continueSign continues the signing process after file selection
@@ -1032,20 +1009,21 @@ func (g *GUI) continueSign() {
 	}
 	author = ensureUTF8(author)
 
-	// Validate Email (RFC-compliant if provided)
+	// Validate Email
 	email := g.emailEntry.Text
 	if err := validateEmail(email); err != nil {
 		dialog.ShowError(err, g.window)
 		return
 	}
 
-	// Validate Telefax (must start with '+' if provided)
+	// Validate Telefax
 	telefax := g.telefaxEntry.Text
 	if err := validateTelefax(telefax); err != nil {
 		dialog.ShowError(err, g.window)
 		return
 	}
 
+	// Check PIN
 	if g.pinEntry.Text == "" {
 		g.showPinDialog("PIN required for signing", func(pin string) {
 			g.pinEntry.SetText(pin)
@@ -1053,6 +1031,7 @@ func (g *GUI) continueSign() {
 		})
 		return
 	}
+
 	// Get file info
 	fileInfo, err := os.Stat(g.currentFile)
 	if err != nil {
@@ -1060,42 +1039,44 @@ func (g *GUI) continueSign() {
 		return
 	}
 	fileSize := fileInfo.Size()
+
 	// Ensure filesize label is visible
 	if g.filesizeLabel.Text == "" {
 		g.filesizeLabel.SetText(fmt.Sprintf("Size: %d bytes (%s)",
 			fileSize, formatByteSize(int(fileSize))))
 		g.filesizeLabel.Show()
 	}
-	// Show initial feedback with file size
+
 	g.statusLabel.SetText(fmt.Sprintf("Preparing to sign %s (%s)...",
 		filepath.Base(g.currentFile), formatByteSize(int(fileSize))))
+
 	// Decide strategy based on file size
-	if fileSize <= 1024*1024*1024 { // <= 1GB - load into RAM
-		// Show progress for RAM loading
+	if fileSize <= 1024*1024*1024 {
+		// <= 1GB - load into RAM
 		g.progressBar.SetValue(0)
 		g.progressBar.Show()
 		g.progressLabel.SetText("Loading file...")
 		g.progressLabel.Show()
 		g.statusLabel.SetText(fmt.Sprintf("Loading %s into RAM...", filepath.Base(g.currentFile)))
-		// Use goroutine to keep UI responsive
+
 		go func() {
 			startTime := time.Now()
-			// Read entire file into RAM with progress simulation
+
 			file, err := os.Open(g.currentFile)
 			if err != nil {
 				g.showErrorAsync("Error opening file: " + err.Error())
 				return
 			}
-			// Read file in chunks to show progress even in RAM mode
+
 			var data []byte
-			buf := make([]byte, 32*1024*1024) // 32MB chunks
+			buf := make([]byte, 32*1024*1024)
 			bytesRead := int64(0)
+
 			for {
 				n, err := file.Read(buf)
 				if n > 0 {
 					data = append(data, buf[:n]...)
 					bytesRead += int64(n)
-					// Update progress
 					progress := float64(bytesRead) / float64(fileSize)
 					fyne.Do(func() {
 						g.progressBar.SetValue(progress)
@@ -1114,12 +1095,14 @@ func (g *GUI) continueSign() {
 				}
 			}
 			file.Close()
-			// Calculate hashes in RAM
+
 			fyne.Do(func() {
 				g.progressLabel.SetText("Calculating hashes...")
 			})
+
 			hashes := g.calculateHashesRAM(data)
-			// Prepare metadata (apply n/a for empty optional fields)
+
+			// Prepare metadata
 			if email == "" {
 				email = "n/a"
 			}
@@ -1137,7 +1120,7 @@ func (g *GUI) continueSign() {
 				comment = ensureUTF8(comment)
 			}
 
-			// Build metadata section with file size (STRICT ORDER)
+			// Build metadata section
 			metadata := fmt.Sprintf("Author: %s\r\n", author)
 			metadata += fmt.Sprintf("Signed at: %s\r\n", time.Now().UTC().Format("2006-01-02 15:04:05 +0000"))
 			metadata += fmt.Sprintf("Filename: %s\r\n", filepath.Base(g.currentFile))
@@ -1147,27 +1130,29 @@ func (g *GUI) continueSign() {
 			metadata += fmt.Sprintf("URL: %s\r\n", url)
 			metadata += fmt.Sprintf("Comment: %s\r\n", comment)
 			metadata += g.formatHashes(hashes)
-			// Sign metadata
+
 			fyne.Do(func() {
 				g.progressLabel.SetText("Signing metadata...")
 			})
+
 			sig, algo, err := g.signDataInternal([]byte(g.pinEntry.Text), []byte(metadata))
 			if err != nil {
 				g.showErrorAsync("Signing failed: " + err.Error())
 				return
 			}
-			// Build final signature
+
 			result := metadata
 			result += "-----BEGIN YUBISIGNER " + algo + " SIGNATURE-----\r\n"
 			result += formatSignatureRFC(sig)
 			result += "-----END YUBISIGNER " + algo + " SIGNATURE-----\r\n"
-			// Write signature to file
+
 			sigFile := g.currentFile + ".sig"
 			err = os.WriteFile(sigFile, []byte(result), 0644)
 			if err != nil {
 				g.showErrorAsync("Error writing signature: " + err.Error())
 				return
 			}
+
 			fyne.Do(func() {
 				g.signaturePath = sigFile
 				g.sigDisplay.SetText("✓ " + filepath.Base(sigFile))
@@ -1178,21 +1163,24 @@ func (g *GUI) continueSign() {
 					totalTime, filepath.Base(sigFile)))
 			})
 		}()
-	} else { // > 1GB - use optimized chunking with progress
+	} else {
+		// > 1GB - use optimized chunking
 		g.progressBar.SetValue(0)
 		g.progressBar.Show()
 		g.progressLabel.SetText("0%")
 		g.progressLabel.Show()
 		g.statusLabel.SetText(fmt.Sprintf("Processing large file (%s)...", formatByteSize(int(fileSize))))
-		// Start async processing with optimized chunking
+
 		go func() {
 			startTime := time.Now()
+
 			hashes, err := g.calculateFileHashesOptimized(g.currentFile)
 			if err != nil {
 				g.showErrorAsync("Error reading file: " + err.Error())
 				return
 			}
-			// Prepare metadata (apply n/a for empty optional fields)
+
+			// Prepare metadata
 			if email == "" {
 				email = "n/a"
 			}
@@ -1210,7 +1198,6 @@ func (g *GUI) continueSign() {
 				comment = ensureUTF8(comment)
 			}
 
-			// Build metadata section with file size (STRICT ORDER)
 			metadata := fmt.Sprintf("Author: %s\r\n", author)
 			metadata += fmt.Sprintf("Signed at: %s\r\n", time.Now().UTC().Format("2006-01-02 15:04:05 +0000"))
 			metadata += fmt.Sprintf("Filename: %s\r\n", filepath.Base(g.currentFile))
@@ -1220,25 +1207,27 @@ func (g *GUI) continueSign() {
 			metadata += fmt.Sprintf("URL: %s\r\n", url)
 			metadata += fmt.Sprintf("Comment: %s\r\n", comment)
 			metadata += g.formatHashes(hashes)
-			// Sign metadata
+
 			g.updateStatusAsync("Signing metadata...")
+
 			sig, algo, err := g.signDataInternal([]byte(g.pinEntry.Text), []byte(metadata))
 			if err != nil {
 				g.showErrorAsync("Signing failed: " + err.Error())
 				return
 			}
-			// Build final signature
+
 			result := metadata
 			result += "-----BEGIN YUBISIGNER " + algo + " SIGNATURE-----\r\n"
 			result += formatSignatureRFC(sig)
 			result += "-----END YUBISIGNER " + algo + " SIGNATURE-----\r\n"
-			// Write signature to file
+
 			sigFile := g.currentFile + ".sig"
 			err = os.WriteFile(sigFile, []byte(result), 0644)
 			if err != nil {
 				g.showErrorAsync("Error writing signature: " + err.Error())
 				return
 			}
+
 			fyne.Do(func() {
 				g.signaturePath = sigFile
 				g.sigDisplay.SetText("✓ " + filepath.Base(sigFile))
@@ -1252,19 +1241,16 @@ func (g *GUI) continueSign() {
 	}
 }
 
-// onVerifyClick - integrated file selection
+// onVerifyClick handles the Verify button click
 func (g *GUI) onVerifyClick() {
 	g.signingMode = false
-	
-	// If no file is selected, open file dialog first
+
 	if g.currentFile == "" {
 		g.selectFile(func() {
-			// After file is selected, proceed with verification
 			g.continueVerify()
 		})
 		return
 	}
-	
 	g.continueVerify()
 }
 
@@ -1274,15 +1260,16 @@ func (g *GUI) continueVerify() {
 		g.statusLabel.SetText("Error: No file selected")
 		return
 	}
-	// Try to find corresponding .sig file
+
 	sigFile := g.currentFile + ".sig"
 	sigData, err := os.ReadFile(sigFile)
 	if err != nil {
 		g.showErrorPopup("Signature not valid", nil)
 		return
 	}
-	// Parse signature file
+
 	s := string(sigData)
+
 	// Find BEGIN line
 	beginPattern := regexp.MustCompile(`-----BEGIN YUBISIGNER ([A-Z0-9]+) SIGNATURE-----`)
 	beginMatch := beginPattern.FindStringSubmatch(s)
@@ -1290,25 +1277,25 @@ func (g *GUI) continueVerify() {
 		g.showErrorPopup("Signature not valid", nil)
 		return
 	}
+
 	algorithm := beginMatch[1]
 	beginLine := beginMatch[0]
 	endLine := "-----END YUBISIGNER " + algorithm + " SIGNATURE-----"
-	// Find positions
+
 	beginIdx := strings.Index(s, beginLine)
 	endIdx := strings.Index(s, endLine)
 	if beginIdx == -1 || endIdx == -1 || endIdx <= beginIdx {
 		g.showErrorPopup("Signature not valid", nil)
 		return
 	}
-	// Extract metadata (everything before BEGIN)
+
 	metadataStr := strings.TrimSpace(s[:beginIdx])
-	// Extract signature hex (between BEGIN and END)
 	sigBlock := s[beginIdx+len(beginLine) : endIdx]
 	sigBlock = strings.TrimSpace(sigBlock)
-	// Combine all hex lines
+
 	re := regexp.MustCompile(`[^a-fA-F0-9]`)
 	sigHex := re.ReplaceAllString(sigBlock, "")
-	// Get current file info
+
 	fileInfo, err := os.Stat(g.currentFile)
 	if err != nil {
 		g.statusLabel.SetText("Error getting file info: " + err.Error())
@@ -1317,7 +1304,6 @@ func (g *GUI) continueVerify() {
 	currentFileSize := fileInfo.Size()
 
 	// STRICT HEADER VALIDATION
-	// Expected headers in exact order
 	expectedHeaders := []string{
 		"Author:",
 		"Signed at:",
@@ -1330,7 +1316,6 @@ func (g *GUI) continueVerify() {
 	}
 
 	metadataLines := strings.Split(metadataStr, "\r\n")
-	// Remove empty trailing lines if any
 	for len(metadataLines) > 0 && metadataLines[len(metadataLines)-1] == "" {
 		metadataLines = metadataLines[:len(metadataLines)-1]
 	}
@@ -1340,7 +1325,6 @@ func (g *GUI) continueVerify() {
 		return
 	}
 
-	// Verify fixed headers
 	for i, expected := range expectedHeaders {
 		if !strings.HasPrefix(metadataLines[i], expected) {
 			g.showErrorPopup("Signature not valid (header mismatch)", nil)
@@ -1348,53 +1332,50 @@ func (g *GUI) continueVerify() {
 		}
 	}
 
-	// Extract expected file size from metadata (Line 4: "File size:")
 	expectedSize := int64(-1)
-	sizeLine := metadataLines[3] // 0-based index 3
+	sizeLine := metadataLines[3]
 	parts := strings.SplitN(sizeLine, ": ", 2)
 	if len(parts) == 2 {
 		fmt.Sscanf(strings.TrimSpace(parts[1]), "%d bytes", &expectedSize)
 	}
 
-	// Check file size mismatch
 	if expectedSize != -1 && expectedSize != currentFileSize {
 		g.showErrorPopup("Signature not valid", nil)
 		return
 	}
 
-	// Remaining lines are hashes
 	hashLinesFromSig := metadataLines[len(expectedHeaders):]
 
-	// Create a channel for synchronization
 	done := make(chan bool)
-	// Show initial feedback
+
 	g.statusLabel.SetText(fmt.Sprintf("Preparing to verify %s...", formatByteSize(int(currentFileSize))))
-	// Decide strategy based on file size
-	if currentFileSize <= 1024*1024*1024 { // <= 1GB - load into RAM
-		// Show progress for RAM loading
+
+	if currentFileSize <= 1024*1024*1024 {
 		g.progressBar.SetValue(0)
 		g.progressBar.Show()
 		g.progressLabel.SetText("Loading file...")
 		g.progressLabel.Show()
 		g.statusLabel.SetText(fmt.Sprintf("Loading %s into RAM...", filepath.Base(g.currentFile)))
+
 		go func() {
 			defer func() { done <- true }()
 			startTime := time.Now()
-			// Read entire file into RAM with progress
+
 			file, err := os.Open(g.currentFile)
 			if err != nil {
 				g.showErrorAsync("Signature not valid")
 				return
 			}
+
 			var data []byte
-			buf := make([]byte, 32*1024*1024) // 32MB chunks
+			buf := make([]byte, 32*1024*1024)
 			bytesRead := int64(0)
+
 			for {
 				n, err := file.Read(buf)
 				if n > 0 {
 					data = append(data, buf[:n]...)
 					bytesRead += int64(n)
-					// Update progress
 					progress := float64(bytesRead) / float64(currentFileSize)
 					fyne.Do(func() {
 						g.progressBar.SetValue(progress)
@@ -1413,22 +1394,23 @@ func (g *GUI) continueVerify() {
 				}
 			}
 			file.Close()
-			// Calculate hashes
+
 			fyne.Do(func() {
 				g.progressLabel.SetText("Calculating hashes...")
 			})
+
 			expectedHashes := g.calculateHashesRAM(data)
 			expectedHashLines := strings.Split(g.formatHashes(expectedHashes), "\r\n")
-			// Remove empty trailing lines
+
 			for len(expectedHashLines) > 0 && expectedHashLines[len(expectedHashLines)-1] == "" {
 				expectedHashLines = expectedHashLines[:len(expectedHashLines)-1]
 			}
 
-			// Compare hash lines strictly
 			if len(hashLinesFromSig) != len(expectedHashLines) {
 				g.showErrorAsync("Signature not valid (hash count mismatch)")
 				return
 			}
+
 			hashValid := true
 			for i, expectedLine := range expectedHashLines {
 				if i >= len(hashLinesFromSig) {
@@ -1445,15 +1427,17 @@ func (g *GUI) continueVerify() {
 				g.showErrorAsync("Signature not valid")
 				return
 			}
-			// Verify signature
+
 			fyne.Do(func() {
 				g.progressLabel.SetText("Verifying signature...")
 			})
+
 			combined, err := hex.DecodeString(sigHex)
 			if err != nil {
 				g.showErrorAsync("Signature not valid")
 				return
 			}
+
 			var verifyErr error
 			switch algorithm {
 			case AlgorithmED25519:
@@ -1465,11 +1449,12 @@ func (g *GUI) continueVerify() {
 				g.showErrorAsync("Signature not valid")
 				return
 			}
+
 			if verifyErr != nil {
 				g.showErrorAsync("Signature not valid")
 				return
 			}
-			// Show success with identicon
+
 			publicKeyBytes, _ := extractPublicKeyFromSignature(combined, algorithm)
 			displayBytes, err := extractPublicKeyDisplayBytes(publicKeyBytes, algorithm)
 			if err != nil {
@@ -1477,6 +1462,7 @@ func (g *GUI) continueVerify() {
 			}
 			hexString := hex.EncodeToString(displayBytes)
 			hashForIdenticon := sha256.Sum256([]byte(hexString))
+
 			fyne.Do(func() {
 				g.progressBar.Hide()
 				g.progressLabel.Hide()
@@ -1485,31 +1471,33 @@ func (g *GUI) continueVerify() {
 				g.showSuccessPopupWithIdenticon(hashForIdenticon[:])
 			})
 		}()
-	} else { // > 1GB - use optimized chunking
+	} else {
 		g.progressBar.SetValue(0)
 		g.progressBar.Show()
 		g.progressLabel.SetText("0%")
 		g.progressLabel.Show()
 		g.statusLabel.SetText(fmt.Sprintf("Verifying large file (%s)...", formatByteSize(int(currentFileSize))))
+
 		go func() {
 			defer func() { done <- true }()
 			startTime := time.Now()
+
 			expectedHashes, err := g.calculateFileHashesOptimized(g.currentFile)
 			if err != nil {
 				g.showErrorAsync("Signature not valid")
 				return
 			}
+
 			expectedHashLines := strings.Split(g.formatHashes(expectedHashes), "\r\n")
-			// Remove empty trailing lines
 			for len(expectedHashLines) > 0 && expectedHashLines[len(expectedHashLines)-1] == "" {
 				expectedHashLines = expectedHashLines[:len(expectedHashLines)-1]
 			}
 
-			// Compare hash lines strictly
 			if len(hashLinesFromSig) != len(expectedHashLines) {
 				g.showErrorAsync("Signature not valid (hash count mismatch)")
 				return
 			}
+
 			hashValid := true
 			for i, expectedLine := range expectedHashLines {
 				if i >= len(hashLinesFromSig) {
@@ -1526,13 +1514,15 @@ func (g *GUI) continueVerify() {
 				g.showErrorAsync("Signature not valid")
 				return
 			}
-			// Verify signature
+
 			g.updateStatusAsync("Verifying signature...")
+
 			combined, err := hex.DecodeString(sigHex)
 			if err != nil {
 				g.showErrorAsync("Signature not valid")
 				return
 			}
+
 			var verifyErr error
 			switch algorithm {
 			case AlgorithmED25519:
@@ -1544,11 +1534,12 @@ func (g *GUI) continueVerify() {
 				g.showErrorAsync("Signature not valid")
 				return
 			}
+
 			if verifyErr != nil {
 				g.showErrorAsync("Signature not valid")
 				return
 			}
-			// Show success with identicon
+
 			publicKeyBytes, _ := extractPublicKeyFromSignature(combined, algorithm)
 			displayBytes, err := extractPublicKeyDisplayBytes(publicKeyBytes, algorithm)
 			if err != nil {
@@ -1556,6 +1547,7 @@ func (g *GUI) continueVerify() {
 			}
 			hexString := hex.EncodeToString(displayBytes)
 			hashForIdenticon := sha256.Sum256([]byte(hexString))
+
 			fyne.Do(func() {
 				g.progressBar.Hide()
 				g.progressLabel.Hide()
@@ -1565,27 +1557,28 @@ func (g *GUI) continueVerify() {
 			})
 		}()
 	}
-	// Wait for goroutine to finish in background (non-blocking)
+
 	go func() {
 		<-done
 	}()
 }
 
-// showErrorPopup shows simple error popup
+// showErrorPopup shows simple error popup dialog
 func (g *GUI) showErrorPopup(message string, publicKeyBytes []byte) {
-	// Ensure progress bars are hidden
 	fyne.Do(func() {
 		g.progressBar.Hide()
 		g.progressLabel.Hide()
 	})
+
 	errorLabel := widget.NewLabel(message)
 	errorLabel.Alignment = fyne.TextAlignCenter
 	errorLabel.TextStyle = fyne.TextStyle{Bold: true}
+
 	content := container.NewVBox(
 		container.NewCenter(errorLabel),
 	)
+
 	d := dialog.NewCustom("Verification Failed", "OK", content, g.window)
-	// Reset status after dialog closes
 	d.SetOnClosed(func() {
 		fyne.Do(func() {
 			g.statusLabel.SetText("Ready")
@@ -1594,26 +1587,28 @@ func (g *GUI) showErrorPopup(message string, publicKeyBytes []byte) {
 	d.Show()
 }
 
-// showSuccessPopupWithIdenticon shows the identicon (modal)
+// showSuccessPopupWithIdenticon shows the identicon on successful verification
 func (g *GUI) showSuccessPopupWithIdenticon(hash []byte) {
-	// Ensure progress bars are hidden
 	fyne.Do(func() {
 		g.progressBar.Hide()
 		g.progressLabel.Hide()
 	})
+
 	identicon := NewClassicIdenticon(hash)
 	img := identicon.Generate()
 	fyneImg := canvas.NewImageFromImage(img)
 	fyneImg.FillMode = canvas.ImageFillContain
 	fyneImg.SetMinSize(fyne.NewSize(128, 128))
+
 	successLabel := widget.NewLabel("Verification Successful")
 	successLabel.Alignment = fyne.TextAlignCenter
+
 	content := container.NewVBox(
 		container.NewCenter(fyneImg),
 		container.NewCenter(successLabel),
 	)
+
 	d := dialog.NewCustom("", "OK", content, g.window)
-	// Reset status after dialog closes
 	d.SetOnClosed(func() {
 		fyne.Do(func() {
 			g.statusLabel.SetText("Ready")
@@ -1622,69 +1617,71 @@ func (g *GUI) showSuccessPopupWithIdenticon(hash []byte) {
 	d.Show()
 }
 
-// calculateHashesRAM - fastest method for files that fit in RAM
+// calculateHashesRAM calculates all hashes for files that fit in RAM
 func (g *GUI) calculateHashesRAM(data []byte) map[string]string {
 	hashes := make(map[string]string)
-	// Streebog-256
+
 	gostHasher := gost34112012256.New()
 	gostHasher.Write(data)
 	hashes["Streebog-256"] = hex.EncodeToString(gostHasher.Sum(nil))
-	// RIPEMD-256
+
 	ripemdHasher := ripemd.New256()
 	ripemdHasher.Write(data)
 	hashes["RIPEMD-256"] = hex.EncodeToString(ripemdHasher.Sum(nil))
-	// SHA-256
+
 	sha256Hash := sha256.Sum256(data)
 	hashes["SHA-256"] = hex.EncodeToString(sha256Hash[:])
-	// SM3
+
 	sm3Hasher := sm3.New()
 	sm3Hasher.Write(data)
 	hashes["SM3"] = hex.EncodeToString(sm3Hasher.Sum(nil))
+
 	return hashes
 }
 
-// calculateFileHashesOptimized - optimized for very large files with speed display
+// calculateFileHashesOptimized calculates hashes for very large files with progress
 func (g *GUI) calculateFileHashesOptimized(filePath string) (map[string]string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
-	// Get file size for progress calculation
+
 	fileInfo, _ := os.Stat(filePath)
 	totalSize := fileInfo.Size()
-	// Dynamic buffer size based on file size
-	bufSize := 32 * 1024 * 1024 // Default 32MB
-	// For very large files, use larger buffer
-	if totalSize > 4*1024*1024*1024 { // > 4GB
-		bufSize = 64 * 1024 * 1024 // 64MB buffer
+
+	bufSize := 32 * 1024 * 1024
+	if totalSize > 4*1024*1024*1024 {
+		bufSize = 64 * 1024 * 1024
 	}
+
 	buf := make([]byte, bufSize)
-	// Initialize hashers
+
 	gostHasher := gost34112012256.New()
 	ripemdHasher := ripemd.New256()
 	sha256Hasher := sha256.New()
 	sm3Hasher := sm3.New()
+
 	bytesProcessed := int64(0)
 	lastProgress := 0
 	startTime := time.Now()
+
 	for {
 		n, err := file.Read(buf)
 		if n > 0 {
-			// Write to all hashers
 			gostHasher.Write(buf[:n])
 			ripemdHasher.Write(buf[:n])
 			sha256Hasher.Write(buf[:n])
 			sm3Hasher.Write(buf[:n])
+
 			bytesProcessed += int64(n)
-			// Update progress every 1% for better feedback
+
 			progress := int(float64(bytesProcessed) / float64(totalSize) * 100)
 			if progress > lastProgress {
 				lastProgress = progress
-				// Calculate speed in MB/s
 				elapsed := time.Since(startTime).Seconds()
 				speed := float64(bytesProcessed) / elapsed / 1024 / 1024
-				// Calculate estimated time remaining
+
 				var remainingStr string
 				if progress > 0 && speed > 0 {
 					remainingBytes := float64(totalSize - bytesProcessed)
@@ -1695,6 +1692,7 @@ func (g *GUI) calculateFileHashesOptimized(filePath string) (map[string]string, 
 						remainingStr = fmt.Sprintf("%.0f sec", remainingTime)
 					}
 				}
+
 				fyne.Do(func() {
 					g.progressBar.SetValue(float64(bytesProcessed) / float64(totalSize))
 					if remainingStr != "" {
@@ -1703,8 +1701,7 @@ func (g *GUI) calculateFileHashesOptimized(filePath string) (map[string]string, 
 					} else {
 						g.progressLabel.SetText(fmt.Sprintf("%d%% (%.1f MB/s)", progress, speed))
 					}
-					// Also update status with size info
-					if progress%10 == 0 { // Every 10%
+					if progress%10 == 0 {
 						g.statusLabel.SetText(fmt.Sprintf("Processing: %s/%s",
 							formatByteSize(int(bytesProcessed)),
 							formatByteSize(int(totalSize))))
@@ -1719,12 +1716,13 @@ func (g *GUI) calculateFileHashesOptimized(filePath string) (map[string]string, 
 			return nil, err
 		}
 	}
-	// Collect hashes
+
 	hashes := make(map[string]string)
 	hashes["Streebog-256"] = hex.EncodeToString(gostHasher.Sum(nil))
 	hashes["RIPEMD-256"] = hex.EncodeToString(ripemdHasher.Sum(nil))
 	hashes["SHA-256"] = hex.EncodeToString(sha256Hasher.Sum(nil))
 	hashes["SM3"] = hex.EncodeToString(sm3Hasher.Sum(nil))
+
 	return hashes, nil
 }
 
@@ -1746,20 +1744,19 @@ func (g *GUI) showErrorAsync(message string) {
 
 // formatHashes formats hashes with right-aligned names
 func (g *GUI) formatHashes(hashes map[string]string) string {
-	// Sort keys alphabetically
 	keys := make([]string, 0, len(hashes))
 	for k := range hashes {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	// Find longest key name for alignment
+
 	maxLen := 0
 	for _, k := range keys {
 		if len(k) > maxLen {
 			maxLen = len(k)
 		}
 	}
-	// Build result string
+
 	var result strings.Builder
 	for _, k := range keys {
 		paddedKey := fmt.Sprintf("%*s", maxLen, k)
@@ -1768,31 +1765,34 @@ func (g *GUI) formatHashes(hashes map[string]string) string {
 	return result.String()
 }
 
-// signDataInternal performs the actual signing operation
+// signDataInternal performs the actual signing operation with YubiKey
 func (g *GUI) signDataInternal(pin, data []byte) (string, string, error) {
 	yk, err := openYubiKey(0)
 	if err != nil {
 		return "", "", err
 	}
 	defer yk.Close()
+
 	cert, err := yk.Certificate(piv.SlotSignature)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get certificate from signature slot: %v", err)
 	}
-	// Handle Ed25519 signing
+
 	if ed25519PubKey, ok := cert.PublicKey.(ed25519.PublicKey); ok {
 		hash := sha256.Sum256(data)
 		return g.signEd25519Data(string(pin), hash[:], ed25519PubKey, yk)
 	}
-	// Handle ECDSA signing
+
 	pubKey, ok := cert.PublicKey.(*ecdsa.PublicKey)
 	if !ok {
 		return "", "", fmt.Errorf("public key is not ECDSA or Ed25519")
 	}
+
 	algorithm, exists := curveToAlgorithm[pubKey.Curve]
 	if !exists {
 		return "", "", fmt.Errorf("unsupported curve: %v", pubKey.Curve)
 	}
+
 	hashFunc := curveToHash[pubKey.Curve]
 	var digest []byte
 	switch hashFunc {
@@ -1807,29 +1807,35 @@ func (g *GUI) signDataInternal(pin, data []byte) (string, string, error) {
 	default:
 		return "", "", fmt.Errorf("unsupported hash algorithm for curve")
 	}
+
 	auth := piv.KeyAuth{PIN: string(pin)}
 	priv, err := yk.PrivateKey(piv.SlotSignature, cert.PublicKey, auth)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get private key: %v", err)
 	}
+
 	signer, ok := priv.(crypto.Signer)
 	if !ok {
 		return "", "", fmt.Errorf("key does not implement crypto.Signer")
 	}
+
 	asn1sig, err := signer.Sign(rand.Reader, digest, nil)
 	if err != nil {
 		return "", "", fmt.Errorf("signing failed: %v", err)
 	}
+
 	var sig ecSignature
 	if _, err := asn1.Unmarshal(asn1sig, &sig); err != nil {
 		return "", "", fmt.Errorf("ASN.1 unmarshal failed: %v", err)
 	}
+
 	curveSize := (pubKey.Curve.Params().BitSize + 7) / 8
 	var raw []byte
 	raw = append(raw, safePad(pubKey.X.Bytes(), curveSize)...)
 	raw = append(raw, safePad(pubKey.Y.Bytes(), curveSize)...)
 	raw = append(raw, safePad(sig.R.Bytes(), curveSize)...)
 	raw = append(raw, safePad(sig.S.Bytes(), curveSize)...)
+
 	return hex.EncodeToString(raw), algorithm, nil
 }
 
@@ -1840,14 +1846,17 @@ func (g *GUI) signEd25519Data(pin string, hash []byte, pubKey ed25519.PublicKey,
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get private key: %v", err)
 	}
+
 	signer, ok := priv.(crypto.Signer)
 	if !ok {
 		return "", "", fmt.Errorf("key does not implement crypto.Signer")
 	}
+
 	signature, err := signer.Sign(rand.Reader, hash, crypto.Hash(0))
 	if err != nil {
 		return "", "", fmt.Errorf("Ed25519 signing failed: %v", err)
 	}
+
 	combined := append(pubKey, signature...)
 	return hex.EncodeToString(combined), AlgorithmED25519, nil
 }
@@ -1857,8 +1866,10 @@ func (g *GUI) verifyEd25519(dataHash, combined []byte) error {
 	if len(combined) != Ed25519CombinedSize {
 		return fmt.Errorf("invalid Ed25519 signature block")
 	}
+
 	publicKey := combined[:Ed25519PublicKeySize]
 	signature := combined[Ed25519PublicKeySize:]
+
 	if !ed25519.Verify(ed25519.PublicKey(publicKey), dataHash, signature) {
 		return fmt.Errorf("Ed25519 signature verification failed")
 	}
@@ -1869,6 +1880,7 @@ func (g *GUI) verifyEd25519(dataHash, combined []byte) error {
 func (g *GUI) verifyECDSA(data, combined []byte, algorithm string) error {
 	var curve elliptic.Curve
 	var hashFunc crypto.Hash
+
 	switch algorithm {
 	case AlgorithmECCP256:
 		curve = elliptic.P256()
@@ -1879,23 +1891,29 @@ func (g *GUI) verifyECDSA(data, combined []byte, algorithm string) error {
 	default:
 		return fmt.Errorf("unsupported ECDSA algorithm: %s", algorithm)
 	}
+
 	curveSize := (curve.Params().BitSize + 7) / 8
 	expectedBytes := 4 * curveSize
+
 	if len(combined) != expectedBytes {
 		return fmt.Errorf("invalid signature block size: expected %d, got %d", expectedBytes, len(combined))
 	}
+
 	X := new(big.Int).SetBytes(safePad(combined[0:curveSize], curveSize))
 	Y := new(big.Int).SetBytes(safePad(combined[curveSize:2*curveSize], curveSize))
 	R := new(big.Int).SetBytes(safePad(combined[2*curveSize:3*curveSize], curveSize))
 	S := new(big.Int).SetBytes(safePad(combined[3*curveSize:], curveSize))
+
 	if !curve.IsOnCurve(X, Y) {
 		return fmt.Errorf("public key point is not on the curve")
 	}
+
 	pub := &ecdsa.PublicKey{
 		Curve: curve,
 		X:     X,
 		Y:     Y,
 	}
+
 	var digest []byte
 	switch hashFunc {
 	case crypto.SHA256:
@@ -1907,6 +1925,7 @@ func (g *GUI) verifyECDSA(data, combined []byte, algorithm string) error {
 		h.Write(data)
 		digest = h.Sum(nil)
 	}
+
 	if !ecdsa.Verify(pub, digest, R, S) {
 		return fmt.Errorf("signature verification failed")
 	}
@@ -1931,8 +1950,10 @@ func extractPublicKeyFromSignature(combined []byte, algorithm string) ([]byte, e
 		default:
 			return nil, fmt.Errorf("unsupported ECDSA algorithm: %s", algorithm)
 		}
+
 		curveSize := (curve.Params().BitSize + 7) / 8
 		expectedBytes := 4 * curveSize
+
 		if len(combined) != expectedBytes {
 			return nil, fmt.Errorf("invalid signature block size: expected %d, got %d", expectedBytes, len(combined))
 		}
@@ -1942,7 +1963,7 @@ func extractPublicKeyFromSignature(combined []byte, algorithm string) ([]byte, e
 	}
 }
 
-// onClear resets the UI
+// onClear resets all UI fields to default state
 func (g *GUI) onClear() {
 	g.authorEntry.SetText("")
 	g.emailEntry.SetText("")
@@ -1963,13 +1984,15 @@ func (g *GUI) onClear() {
 	g.statusLabel.SetText("Cleared all fields")
 }
 
-// Helper functions
+// safePad pads or truncates byte slice to specified size
 func safePad(b []byte, size int) []byte {
 	if len(b) > size {
 		return b[len(b)-size:]
 	}
 	return append(make([]byte, size-len(b)), b...)
 }
+
+// formatSignatureRFC formats signature in RFC-compliant format with line breaks
 func formatSignatureRFC(sig string) string {
 	var result strings.Builder
 	for i := 0; i < len(sig); i += 64 {
@@ -1982,6 +2005,8 @@ func formatSignatureRFC(sig string) string {
 	}
 	return result.String()
 }
+
+// formatByteSize converts bytes to human-readable format
 func formatByteSize(bytes int) string {
 	const unit = 1024
 	if bytes < unit {
@@ -1994,6 +2019,8 @@ func formatByteSize(bytes int) string {
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
+
+// stripLeadingZeros removes leading zero bytes from byte slice
 func stripLeadingZeros(b []byte) []byte {
 	i := 0
 	for i < len(b)-1 && b[i] == 0 {
@@ -2001,6 +2028,8 @@ func stripLeadingZeros(b []byte) []byte {
 	}
 	return b[i:]
 }
+
+// extractPublicKeyDisplayBytes extracts public key bytes for identicon generation
 func extractPublicKeyDisplayBytes(combined []byte, algorithm string) ([]byte, error) {
 	switch algorithm {
 	case AlgorithmED25519:
@@ -2018,15 +2047,19 @@ func extractPublicKeyDisplayBytes(combined []byte, algorithm string) ([]byte, er
 		default:
 			return nil, fmt.Errorf("unsupported ECDSA algorithm: %s", algorithm)
 		}
+
 		curveSize := (curve.Params().BitSize + 7) / 8
 		expectedBytes := 4 * curveSize
+
 		if len(combined) != expectedBytes {
 			return nil, fmt.Errorf("invalid signature block size: expected %d, got %d", expectedBytes, len(combined))
 		}
+
 		XBytes := combined[0:curveSize]
 		YBytes := combined[curveSize : 2*curveSize]
 		XStripped := stripLeadingZeros(XBytes)
 		YStripped := stripLeadingZeros(YBytes)
+
 		result := make([]byte, 0, len(XStripped)+len(YStripped))
 		result = append(result, XStripped...)
 		result = append(result, YStripped...)
@@ -2035,6 +2068,8 @@ func extractPublicKeyDisplayBytes(combined []byte, algorithm string) ([]byte, er
 		return nil, fmt.Errorf("unsupported algorithm: %s", algorithm)
 	}
 }
+
+// openYubiKey opens YubiKey at specified index
 func openYubiKey(index int) (*piv.YubiKey, error) {
 	cards, err := piv.Cards()
 	if err != nil {
@@ -2043,6 +2078,7 @@ func openYubiKey(index int) (*piv.YubiKey, error) {
 	if len(cards) == 0 {
 		return nil, fmt.Errorf("no smart card found")
 	}
+
 	count := 0
 	for _, card := range cards {
 		if strings.Contains(strings.ToLower(card), "yubikey") {
@@ -2055,12 +2091,13 @@ func openYubiKey(index int) (*piv.YubiKey, error) {
 	return nil, fmt.Errorf("no YubiKey found at index %d", index)
 }
 
-// ClassicIdenticon implementation
+// ClassicIdenticon generates visual identicons from hash data
 type ClassicIdenticon struct {
 	source []byte
 	size   int
 }
 
+// NewClassicIdenticon creates a new identicon generator
 func NewClassicIdenticon(source []byte) *ClassicIdenticon {
 	return &ClassicIdenticon{
 		source: source,
@@ -2068,6 +2105,7 @@ func NewClassicIdenticon(source []byte) *ClassicIdenticon {
 	}
 }
 
+// getBit retrieves a specific bit from the source data
 func (identicon *ClassicIdenticon) getBit(n int) bool {
 	if len(identicon.source) == 0 || n < 0 {
 		return false
@@ -2080,10 +2118,12 @@ func (identicon *ClassicIdenticon) getBit(n int) bool {
 	return (identicon.source[byteIndex]>>bitIndex)&1 == 1
 }
 
+// foreground returns the primary color for the identicon
 func (identicon *ClassicIdenticon) foreground() color.Color {
 	if len(identicon.source) < 32 {
 		return color.RGBA{0, 0, 0, 255}
 	}
+
 	colorIndex := 0
 	for i := 0; i < 4; i++ {
 		if identicon.getBit(248 + i) {
@@ -2091,6 +2131,7 @@ func (identicon *ClassicIdenticon) foreground() color.Color {
 		}
 	}
 	colorIndex %= 16
+
 	palette := []color.RGBA{
 		{0x00, 0xbf, 0x93, 0xff},
 		{0x2d, 0xcc, 0x70, 0xff},
@@ -2112,10 +2153,12 @@ func (identicon *ClassicIdenticon) foreground() color.Color {
 	return palette[colorIndex]
 }
 
+// secondaryColor returns the secondary color for the identicon
 func (identicon *ClassicIdenticon) secondaryColor() color.Color {
 	if len(identicon.source) < 32 {
 		return color.RGBA{100, 100, 100, 255}
 	}
+
 	colorIndex := 0
 	for i := 0; i < 4; i++ {
 		if identicon.getBit(244 + i) {
@@ -2123,6 +2166,7 @@ func (identicon *ClassicIdenticon) secondaryColor() color.Color {
 		}
 	}
 	colorIndex %= 16
+
 	palette := []color.RGBA{
 		{0x34, 0x49, 0x5e, 0xff},
 		{0x95, 0xa5, 0xa5, 0xff},
@@ -2144,9 +2188,11 @@ func (identicon *ClassicIdenticon) secondaryColor() color.Color {
 	return palette[colorIndex]
 }
 
+// generatePixelPattern generates the pixel pattern for the identicon
 func (identicon *ClassicIdenticon) generatePixelPattern() ([]bool, []bool) {
 	primary := make([]bool, 25)
 	secondary := make([]bool, 25)
+
 	bitIndex := 0
 	for row := 0; row < 5; row++ {
 		for col := 0; col < 3; col++ {
@@ -2158,6 +2204,7 @@ func (identicon *ClassicIdenticon) generatePixelPattern() ([]bool, []bool) {
 			primary[mirrorIx] = paint
 		}
 	}
+
 	for row := 0; row < 5; row++ {
 		for col := 0; col < 3; col++ {
 			paint := identicon.getBit(bitIndex)
@@ -2168,9 +2215,11 @@ func (identicon *ClassicIdenticon) generatePixelPattern() ([]bool, []bool) {
 			secondary[mirrorIx] = paint
 		}
 	}
+
 	return primary, secondary
 }
 
+// drawRect draws a filled rectangle on the image
 func (identicon *ClassicIdenticon) drawRect(img *image.RGBA, x0, y0, x1, y1 int, c color.Color) {
 	r, g, b, a := c.RGBA()
 	rgba := color.RGBA{
@@ -2186,15 +2235,19 @@ func (identicon *ClassicIdenticon) drawRect(img *image.RGBA, x0, y0, x1, y1 int,
 	}
 }
 
+// Generate creates the final identicon image
 func (identicon *ClassicIdenticon) Generate() image.Image {
 	const (
 		pixelSize  = 36
 		spriteSize = 5
 		margin     = (256 - pixelSize*spriteSize) / 2
 	)
+
 	primaryColor := identicon.foreground()
 	secondaryColor := identicon.secondaryColor()
+
 	img := image.NewRGBA(image.Rect(0, 0, identicon.size, identicon.size))
+
 	// Background
 	bgChoice := 0
 	for i := 0; i < 2; i++ {
@@ -2203,6 +2256,7 @@ func (identicon *ClassicIdenticon) Generate() image.Image {
 		}
 	}
 	bgChoice %= 3
+
 	var bg color.RGBA
 	if fyne.CurrentApp().Settings().ThemeVariant() == theme.VariantDark {
 		darkBackgrounds := []color.RGBA{
@@ -2219,12 +2273,15 @@ func (identicon *ClassicIdenticon) Generate() image.Image {
 		}
 		bg = lightBackgrounds[bgChoice]
 	}
+
 	for y := 0; y < identicon.size; y++ {
 		for x := 0; x < identicon.size; x++ {
 			img.SetRGBA(x, y, bg)
 		}
 	}
+
 	primaryPixels, secondaryPixels := identicon.generatePixelPattern()
+
 	// Draw secondary pixels
 	for row := 0; row < spriteSize; row++ {
 		for col := 0; col < spriteSize; col++ {
@@ -2235,6 +2292,7 @@ func (identicon *ClassicIdenticon) Generate() image.Image {
 			}
 		}
 	}
+
 	// Draw primary pixels
 	for row := 0; row < spriteSize; row++ {
 		for col := 0; col < spriteSize; col++ {
@@ -2245,5 +2303,6 @@ func (identicon *ClassicIdenticon) Generate() image.Image {
 			}
 		}
 	}
+
 	return img
 }
